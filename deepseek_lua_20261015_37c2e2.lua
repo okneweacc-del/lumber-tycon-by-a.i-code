@@ -1,7 +1,9 @@
 --[[
 ============================================================
-    TRKIEN LT2 HUB v3.1 - AUTO EQUIP AXE + CLEAN UI
+    TRKIEN LT2 HUB v3.2 - FULL FIXED
     Author : trkien depzai
+    Fixes  : 9 bugs (LagFix, ESP, Tele, AutoSell, AutoFarm,
+             InfiniteJump, AxePriority, ESPCache, GUI Respawn)
 ============================================================
 ]]
 
@@ -54,7 +56,6 @@ local STATE = {
     WaitingKey  = nil,
 }
 
--- ================= AXE MODULE =================
 local AxeModule = {
     PreferredAxe  = "auto",
     CheckInterval = 0.5,
@@ -62,10 +63,14 @@ local AxeModule = {
     CurrentAxe    = nil,
 }
 
+-- FIX #7: uu tien riu chat cay thuong truoc
 local AXE_PRIORITY = {
-    "apocalypse", "sinister", "spooky", "phantom",
-    "gold", "frost", "steel", "plain", "basic",
-    "axe", "hatchet", "chainsaw",
+    "basic", "plain", "steel", "gold", "frost",
+    "sinister", "spooky",
+    "axe", "hatchet",
+    "apocalypse",
+    "phantom",
+    "chainsaw",
 }
 
 -- ================= UTILS =================
@@ -83,10 +88,15 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
+-- FIX #2: chi coi la cay neu model co PrimaryPart
 local function isTree(o)
     if not o or not o:IsA("Model") then return false end
     local n = o.Name:lower()
-    return n:find("tree") or (n:find("log") and not n:find("login"))
+    if n:find("tree") then return true end
+    if n:find("log") and not n:find("login") then
+        if o.PrimaryPart and #o:GetChildren() > 2 then return true end
+    end
+    return false
 end
 
 local function isWood(o)
@@ -103,7 +113,7 @@ end
 
 local function dist(a, b) return (a - b).Magnitude end
 
--- ================= AXE FUNCTIONS =================
+-- ================= AXE =================
 local function getBackpack()
     return LocalPlayer:FindFirstChildOfClass("Backpack")
 end
@@ -203,6 +213,8 @@ local function autoEquipAxe()
 end
 
 -- ================= GUI =================
+local currentGui = nil
+
 local function buildGUI()
     local parent = LocalPlayer:WaitForChild("PlayerGui")
     local old = parent:FindFirstChild("TRKIEN_HUB")
@@ -213,6 +225,7 @@ local function buildGUI()
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = parent
+    currentGui = gui
 
     local main = Instance.new("Frame", gui)
     main.Size = UDim2.new(0, 500, 0, 340)
@@ -236,7 +249,7 @@ local function buildGUI()
     title.Size = UDim2.new(1, -60, 1, 0)
     title.Position = UDim2.new(0, 15, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "TRKIEN LT2 HUB  •  v3.1"
+    title.Text = "TRKIEN LT2 HUB  •  v3.2"
     title.TextColor3 = Color3.fromRGB(255, 70, 70)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 16
@@ -392,7 +405,7 @@ local function buildGUI()
         return lbl
     end
 
-    -- ===== TAB: FARM =====
+    -- TAB: FARM
     local farmPage = addTab("Farm")
     makeSection(farmPage, "AUTO FARM")
     makeRow(farmPage, "Auto Farm (loop)", "AutoFarm", true)
@@ -402,10 +415,13 @@ local function buildGUI()
     makeRow(farmPage, "Auto Sell", "AutoSell", true)
 
     makeSection(farmPage, "TELEPORT")
+    -- FIX #3: check Magnitude truoc khi tele
     makeRow(farmPage, "Ve Base", nil, false, function()
+        if CONFIG.BasePos.Magnitude < 1 then log("Chua luu Base!"); return end
         local r = getRoot(); if r then r.CFrame = CFrame.new(CONFIG.BasePos) end
     end)
     makeRow(farmPage, "Den Sell", nil, false, function()
+        if CONFIG.SellPos.Magnitude < 1 then log("Chua luu Sell!"); return end
         local r = getRoot(); if r then r.CFrame = CFrame.new(CONFIG.SellPos) end
     end)
     makeRow(farmPage, "Luu Base", nil, false, function()
@@ -415,7 +431,7 @@ local function buildGUI()
         local r = getRoot(); if r then CONFIG.SellPos = r.Position; log("Sell saved") end
     end)
 
-    -- ===== TAB: VISUAL =====
+    -- TAB: VISUAL
     local visPage = addTab("Visual")
     makeSection(visPage, "VISUAL")
     makeRow(visPage, "ESP Cay", "ESP", true)
@@ -433,7 +449,7 @@ local function buildGUI()
     makeRow(visPage, "WS -10", nil, false, function() CONFIG.WalkSpeed = math.max(16, CONFIG.WalkSpeed - 10) end)
     makeRow(visPage, "WS Reset", nil, false, function() CONFIG.WalkSpeed = 50 end)
 
-    -- ===== TAB: MISC =====
+    -- TAB: MISC
     local miscPage = addTab("Misc")
     makeSection(miscPage, "ANTI")
     makeRow(miscPage, "Anti AFK", "AntiAFK", true)
@@ -446,7 +462,7 @@ local function buildGUI()
         game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
     end)
 
-    -- ===== TAB: KEYBIND =====
+    -- TAB: KEYBIND
     local keyPage = addTab("Keybind")
     makeSection(keyPage, "PHIM TAT")
 
@@ -484,8 +500,10 @@ local function buildGUI()
         if input.KeyCode == KEYS.ToggleGUI then
             gui.Enabled = not gui.Enabled
         elseif input.KeyCode == KEYS.TeleBase then
+            if CONFIG.BasePos.Magnitude < 1 then log("Chua luu Base!"); return end
             local r = getRoot(); if r then r.CFrame = CFrame.new(CONFIG.BasePos) end
         elseif input.KeyCode == KEYS.TeleSell then
+            if CONFIG.SellPos.Magnitude < 1 then log("Chua luu Sell!"); return end
             local r = getRoot(); if r then r.CFrame = CFrame.new(CONFIG.SellPos) end
         elseif input.KeyCode == KEYS.TeleTree then
             local r = getRoot()
@@ -547,6 +565,7 @@ local function autoPickup()
     end
 end
 
+-- FIX #4: chi activate tool khong phai riu
 local function autoSell()
     if not CONFIG.AutoSell then return end
     local root = getRoot(); if not root then return end
@@ -562,7 +581,9 @@ local function autoSell()
         local c = LocalPlayer.Character
         if c then
             for _, t in pairs(c:GetChildren()) do
-                if t:IsA("Tool") then pcall(function() t:Activate() end) end
+                if t:IsA("Tool") and not isAxe(t) then
+                    pcall(function() t:Activate() end)
+                end
             end
         end
     elseif CONFIG.SellPos.Magnitude > 0 then
@@ -570,11 +591,21 @@ local function autoSell()
     end
 end
 
+-- FIX #5: dem so lan khong tim thay cay
+local farmNoTreeCount = 0
 local function autoFarm()
     if not CONFIG.AutoFarm then return end
     if STATE.FarmPhase == "CHOP" then
         local ok = autoChop()
-        if not ok then STATE.FarmPhase = "SELL" end
+        if not ok then
+            farmNoTreeCount = farmNoTreeCount + 1
+            if farmNoTreeCount > 3 then
+                STATE.FarmPhase = "SELL"
+                farmNoTreeCount = 0
+            end
+        else
+            farmNoTreeCount = 0
+        end
     elseif STATE.FarmPhase == "SELL" then
         autoSell()
         task.wait(CONFIG.FarmDelay)
@@ -583,12 +614,13 @@ local function autoFarm()
     autoPickup()
 end
 
+-- FIX #8: clear cache dung cach
 local function updateESP()
     if not CONFIG.ESP then
         for o, h in pairs(STATE.ESPCache) do
-            if h and h.Parent then h:Destroy() end
-            STATE.ESPCache[o] = nil
+            pcall(function() if h and h.Parent then h:Destroy() end end)
         end
+        STATE.ESPCache = {}
         return
     end
     for _, o in pairs(Workspace:GetDescendants()) do
@@ -620,26 +652,37 @@ local function updateFullbright()
     end
 end
 
+-- FIX #1: khong an nhan vat
 local lastLagRun = 0
 local function lagFix()
     if not CONFIG.LagFix then return end
     if tick() - lastLagRun < 3 then return end
     lastLagRun = tick()
     local root = getRoot()
+    local char = LocalPlayer.Character
     for _, o in pairs(Workspace:GetDescendants()) do
         if o:IsA("ParticleEmitter") or o:IsA("Trail") or o:IsA("Smoke") or o:IsA("Fire") then
             o.Enabled = false
         elseif o:IsA("BasePart") and root then
-            local d = dist(o.Position, root.Position)
-            o.LocalTransparencyModifier = d > CONFIG.RenderDist and 1 or 0
+            if char and o:IsDescendantOf(char) then
+                o.LocalTransparencyModifier = 0
+            else
+                local d = dist(o.Position, root.Position)
+                o.LocalTransparencyModifier = d > CONFIG.RenderDist and 1 or 0
+            end
         end
     end
 end
 
+-- FIX #6: reset state sau infinite jump
 UIS.JumpRequest:Connect(function()
     if CONFIG.InfiniteJump then
         local h = getHum()
-        if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+        if h then
+            h:ChangeState(Enum.HumanoidStateType.Jumping)
+            task.wait(0.05)
+            h:ChangeState(Enum.HumanoidStateType.Freefall)
+        end
     end
 end)
 
@@ -651,8 +694,14 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- ================= MAIN LOOP =================
+-- ================= MAIN =================
 buildGUI()
+
+-- FIX #9: rebuild GUI khi respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    pcall(buildGUI)
+end)
 
 RunService.Heartbeat:Connect(function()
     if not STATE.Running then return end
@@ -671,4 +720,4 @@ task.spawn(function()
     end
 end)
 
-log("TRKIEN LT2 HUB v3.1 loaded")
+log("TRKIEN LT2 HUB v3.2 loaded - 9 bugs fixed")
